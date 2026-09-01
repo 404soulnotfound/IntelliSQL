@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>IntelliSQL — AI-Powered SQL Querying</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+</head>
+<body>
+
+<!-- ══════════════════ HEADER ══════════════════ -->
+<header class="header">
+  <div class="header-left">
+    <div class="logo">
+      <span class="logo-icon">⚡</span>
+      <span class="logo-text">IntelliSQL</span>
+      <span class="logo-badge">Gemini Pro</span>
+    </div>
+    <p class="tagline">Ask questions in plain English. Get SQL results instantly.</p>
+  </div>
+  <div class="header-right">
+    <div class="stat-pill" id="stat-db">📦 SQLite DB</div>
+    <div class="stat-pill" id="stat-tables">5 tables</div>
+  </div>
+</header>
+
+<!-- ══════════════════ MAIN LAYOUT ══════════════════ -->
+<div class="main-layout">
+
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar">
+    <div class="sidebar-header">Schema Explorer</div>
+
+    <div id="schema-list">
+      {% for table in schema %}
+      <div class="table-block">
+        <div class="table-name" onclick="toggleTable(this)">
+          <span class="table-icon">▤</span> {{ table }}
+          <span class="expand-icon">›</span>
+        </div>
+        <div class="table-cols" style="display:none;" data-table="{{ table }}">
+          <div class="loading-cols">Loading...</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Sample Questions -->
+    <div class="sidebar-header" style="margin-top:20px;">Try These</div>
+    <div class="sample-questions">
+      <div class="sample-q" onclick="useQuestion(this)">Show all customers from India</div>
+      <div class="sample-q" onclick="useQuestion(this)">Top 5 products by total revenue</div>
+      <div class="sample-q" onclick="useQuestion(this)">Total orders per country</div>
+      <div class="sample-q" onclick="useQuestion(this)">Average salary by department</div>
+      <div class="sample-q" onclick="useQuestion(this)">Customers who spent more than 10000</div>
+      <div class="sample-q" onclick="useQuestion(this)">Products with low stock (less than 100)</div>
+      <div class="sample-q" onclick="useQuestion(this)">Orders placed in last 90 days</div>
+      <div class="sample-q" onclick="useQuestion(this)">Employees and their managers</div>
+    </div>
+  </aside>
+
+  <!-- ── MAIN CONTENT ── -->
+  <main class="content">
+
+    <!-- QUERY INPUT -->
+    <section class="query-section">
+      <div class="query-box">
+        <div class="query-label">
+          <span class="ai-dot"></span> Ask Gemini Pro
+        </div>
+        <div class="input-row">
+          <textarea
+            id="question-input"
+            class="question-input"
+            placeholder="e.g.  Show me total revenue by product category..."
+            rows="2"
+            onkeydown="handleKeydown(event)"
+          ></textarea>
+          <button class="run-btn" onclick="submitQuestion()" id="run-btn">
+            <span id="btn-text">Generate SQL ↗</span>
+          </button>
+        </div>
+        <div class="input-hint">Press Ctrl+Enter to run</div>
+      </div>
+    </section>
+
+    <!-- GENERATED SQL -->
+    <section class="sql-section" id="sql-section" style="display:none;">
+      <div class="section-header">
+        <span class="section-title">Generated SQL</span>
+        <div class="section-actions">
+          <button class="icon-btn" onclick="copySQL()" title="Copy SQL">⎘ Copy</button>
+          <button class="icon-btn" onclick="executeRaw()" title="Run edited SQL">▶ Re-run</button>
+        </div>
+      </div>
+      <div class="sql-editor-wrap">
+        <textarea id="sql-output" class="sql-editor" spellcheck="false" rows="5"></textarea>
+      </div>
+    </section>
+
+    <!-- AI EXPLANATION -->
+    <section class="explanation-section" id="explanation-section" style="display:none;">
+      <div class="explanation-box">
+        <span class="explanation-icon">💡</span>
+        <p id="explanation-text"></p>
+      </div>
+    </section>
+
+    <!-- RESULTS TABLE -->
+    <section class="results-section" id="results-section" style="display:none;">
+      <div class="section-header">
+        <span class="section-title">Results</span>
+        <div class="section-actions">
+          <span class="row-count" id="row-count"></span>
+          <button class="icon-btn" onclick="exportCSV()">⬇ Export CSV</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="results-table" id="results-table">
+          <thead id="results-thead"></thead>
+          <tbody id="results-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ERROR BOX -->
+    <section class="error-section" id="error-section" style="display:none;">
+      <div class="error-box">
+        <div class="error-title">⚠ Error</div>
+        <p id="error-text"></p>
+        <div class="error-hint" id="error-hint"></div>
+      </div>
+    </section>
+
+    <!-- QUERY HISTORY -->
+    <section class="history-section" id="history-section" style="display:none;">
+      <div class="section-header">
+        <span class="section-title">Query History</span>
+        <button class="icon-btn" onclick="clearHistory()">✕ Clear</button>
+      </div>
+      <div id="history-list"></div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ══════════════════ FOOTER ══════════════════ -->
+<footer class="footer">
+  Built with 💙 using Gemini Pro + Flask + SQLite |
+  SmartBridge Generative AI Course Project
+</footer>
+
+<script>
+// ════════════════════════════════════════════
+// JAVASCRIPT — IntelliSQL Frontend Logic
+// ════════════════════════════════════════════
+
+let lastResults = [];
+let lastColumns = [];
+
+// ── Load schema columns when user expands a table ──
+function toggleTable(el) {
+  const block = el.closest('.table-block');
+  const colDiv = block.querySelector('.table-cols');
+  const icon = el.querySelector('.expand-icon');
+
+  if (colDiv.style.display === 'none') {
+    colDiv.style.display = 'block';
+    icon.textContent = '⌄';
+
+    const tableName = colDiv.dataset.table;
+    if (colDiv.dataset.loaded) return;
+
+    // Fetch schema from backend
+    fetch('/schema')
+      .then(r => r.json())
+      .then(schema => {
+        const cols = schema[tableName] || [];
+        colDiv.innerHTML = cols.map(c =>
+          `<div class="col-row">
+            <span class="col-name">${c.name}${c.pk ? ' 🔑' : ''}</span>
+            <span class="col-type">${c.type}</span>
+          </div>`
+        ).join('');
+        colDiv.dataset.loaded = true;
+      });
+  } else {
+    colDiv.style.display = 'none';
+    icon.textContent = '›';
+  }
+}
+
+// ── Use sample question ──
+function useQuestion(el) {
+  document.getElementById('question-input').value = el.textContent;
+  submitQuestion();
+}
+
+// ── Ctrl+Enter submits ──
+function handleKeydown(e) {
+  if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); submitQuestion(); }
+}
+
+// ── MAIN: Submit question to backend ──
+async function submitQuestion() {
+  const question = document.getElementById('question-input').value.trim();
+  if (!question) return;
+
+  setLoading(true);
+  hideAll();
+
+  try {
+    const resp = await fetch('/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question })
+    });
+    const data = await resp.json();
+
+    if (data.error) {
+      showError(data.error, data.hint);
+    } else {
+      showSQL(data.sql);
+      showExplanation(data.explanation);
+      showResults(data.columns, data.rows, data.row_count);
+      loadHistory();
+    }
+  } catch (err) {
+    showError('Connection error. Is the Flask server running?', '');
+  } finally {
+    setLoading(false);
+  }
+}
+
+// ── Re-run manually edited SQL ──
+async function executeRaw() {
+  const sql = document.getElementById('sql-output').value.trim();
+  if (!sql) return;
+
+  setLoading(true);
+  hideResults();
+
+  try {
+    const resp = await fetch('/execute-raw', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sql })
+    });
+    const data = await resp.json();
+
+    if (data.error) showError(data.error, '');
+    else showResults(data.columns, data.rows, data.row_count);
+  } finally {
+    setLoading(false);
+  }
+}
+
+// ── Display generated SQL ──
+function showSQL(sql) {
+  document.getElementById('sql-output').value = sql;
+  document.getElementById('sql-section').style.display = 'block';
+}
+
+// ── Display AI explanation ──
+function showExplanation(text) {
+  if (!text) return;
+  document.getElementById('explanation-text').textContent = text;
+  document.getElementById('explanation-section').style.display = 'block';
+}
+
+// ── Build results table ──
+function showResults(columns, rows, count) {
+  lastColumns = columns;
+  lastResults = rows;
+
+  const thead = document.getElementById('results-thead');
+  const tbody = document.getElementById('results-tbody');
+
+  thead.innerHTML = '<tr>' + columns.map(c => `<th>${c}</th>`).join('') + '</tr>';
+
+  tbody.innerHTML = rows.map(row =>
+    '<tr>' + row.map(val =>
+      `<td>${val === null ? '<span class="null-val">NULL</span>' : val}</td>`
+    ).join('') + '</tr>'
+  ).join('');
+
+  document.getElementById('row-count').textContent = `${count} row${count !== 1 ? 's' : ''}`;
+  document.getElementById('results-section').style.display = 'block';
+}
+
+// ── Show error ──
+function showError(msg, hint) {
+  document.getElementById('error-text').textContent = msg;
+  document.getElementById('error-hint').textContent = hint || '';
+  document.getElementById('error-section').style.display = 'block';
+}
+
+// ── Load query history from session ──
+async function loadHistory() {
+  const resp = await fetch('/history');
+  const history = await resp.json();
+
+  if (!history.length) return;
+
+  const list = document.getElementById('history-list');
+  list.innerHTML = history.slice().reverse().map(h =>
+    `<div class="history-item" onclick="rerunHistory('${h.id}', \`${h.question}\`)">
+      <span class="history-q">${h.question}</span>
+      <code class="history-sql">${h.sql.substring(0, 80)}${h.sql.length > 80 ? '...' : ''}</code>
+    </div>`
+  ).join('');
+
+  document.getElementById('history-section').style.display = 'block';
+}
+
+function rerunHistory(id, question) {
+  document.getElementById('question-input').value = question;
+  submitQuestion();
+}
+
+async function clearHistory() {
+  await fetch('/history', { method: 'DELETE' });
+  document.getElementById('history-section').style.display = 'none';
+}
+
+// ── Copy SQL to clipboard ──
+function copySQL() {
+  const sql = document.getElementById('sql-output').value;
+  navigator.clipboard.writeText(sql);
+
+  const btn = document.querySelector('.icon-btn');
+  btn.textContent = '✓ Copied!';
+  setTimeout(() => btn.textContent = '⎘ Copy', 1500);
+}
+
+// ── Export results to CSV ──
+function exportCSV() {
+  if (!lastResults.length) return;
+
+  const header = lastColumns.join(',');
+  const rows = lastResults.map(r =>
+    r.map(v => `"${v === null ? '' : v}"`).join(',')
+  ).join('\n');
+
+  const blob = new Blob([header + '\n' + rows], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'intellisql_results.csv';
+  a.click();
+}
+
+// ── UI helpers ──
+function setLoading(isLoading) {
+  const btn = document.getElementById('run-btn');
+  const text = document.getElementById('btn-text');
+  btn.disabled = isLoading;
+  text.textContent = isLoading ? 'Thinking...' : 'Generate SQL ↗';
+  if (isLoading) btn.classList.add('loading');
+  else btn.classList.remove('loading');
+}
+
+function hideAll() {
+  ['sql-section','explanation-section','results-section','error-section']
+    .forEach(id => document.getElementById(id).style.display = 'none');
+}
+
+function hideResults() {
+  document.getElementById('results-section').style.display = 'none';
+  document.getElementById('error-section').style.display = 'none';
+}
+
+// Load history on page load
+loadHistory();
+</script>
+</body>
+</html>
