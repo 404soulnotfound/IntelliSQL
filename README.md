@@ -59,20 +59,6 @@ User Question (English)
 
 ---
 
-## 📁 File Structure
-
-```
-intellisql/
-├── app.py              ← Flask routes & API endpoints
-├── gemini_handler.py   ← All Gemini Pro interactions
-├── database.py         ← SQLite DB creation & queries
-├── requirements.txt    ← Python dependencies
-├── .env                ← Your API key (never commit this!)
-├── templates/
-│   └── index.html      ← Full frontend (HTML + JS)
-└── static/
-    └── style.css       ← Dark theme CSS
-```
 
 ---
 
@@ -166,6 +152,4 @@ After building this project you will understand:
 
 ---
 
-## 👤 Author
-[Your Name]
-SmartBridge Generative AI with Google — Cohort [Your Batch]
+## Live Link
