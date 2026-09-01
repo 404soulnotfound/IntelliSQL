@@ -153,3 +153,5 @@ After building this project you will understand:
 ---
 
 ## Live Link
+
+https://intellisql.vercel.app/
