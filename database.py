@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import random
 
 
-DB_PATH = "intellisql.db"
+DB_PATH = "/tmp/intellisql.db"
 
 
 class DatabaseManager:

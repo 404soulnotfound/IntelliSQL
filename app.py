@@ -129,8 +129,9 @@ def execute_raw():
         return jsonify({"error": str(e)}), 500
 
 
+# Initialize database
+db_manager.initialize()
+
 if __name__ == "__main__":
-    # Initialize the database with sample data on first run
-    db_manager.initialize()
     print("✅ IntelliSQL is running at http://localhost:5000")
     app.run(debug=True)
