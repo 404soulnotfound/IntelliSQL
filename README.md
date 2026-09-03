@@ -142,7 +142,7 @@ employee_id, name, department, salary, hire_date, manager_id
 
 ## 📊 Project Outcomes
 
-After building this project you will understand:
+After building this project I have understood:
 - How to integrate Gemini Pro API into a Python app
 - Prompt engineering for structured output (SQL)
 - Flask REST API design
